@@ -13,7 +13,8 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 import java.time.Duration;
 
-@Configuration
+// 已被RedisSentinelConfig替代，使用哨兵模式
+// @Configuration
 public class RedisConfig {
 
     @Bean
