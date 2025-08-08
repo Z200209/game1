@@ -27,33 +27,41 @@ public class DataSourceConfig {
 
     /**
      * 主库数据源（写）- 3306端口
+     * 使用@ConfigurationProperties自动绑定配置属性
      */
     @Bean(name = "masterDataSource")
     @ConfigurationProperties(prefix = "spring.datasource.master")
-    public DataSource masterDataSource() {
+    public DruidDataSource masterDataSource() {
         DruidDataSource dataSource = new DruidDataSource();
+        // 基础连接池配置
         dataSource.setInitialSize(5);
         dataSource.setMinIdle(5);
         dataSource.setMaxActive(20);
         dataSource.setMaxWait(60000);
         dataSource.setValidationQuery("SELECT 1");
         dataSource.setTestWhileIdle(true);
+        dataSource.setTimeBetweenEvictionRunsMillis(60000);
+        dataSource.setMinEvictableIdleTimeMillis(300000);
         return dataSource;
     }
 
     /**
      * 从库数据源（读）- 3307端口
+     * 使用@ConfigurationProperties自动绑定配置属性
      */
     @Bean(name = "slaveDataSource")
     @ConfigurationProperties(prefix = "spring.datasource.slave")
-    public DataSource slaveDataSource() {
-        DruidDataSource dataSource = new DruidDataSource();   // 使用Druid数据源
+    public DruidDataSource slaveDataSource() {
+        DruidDataSource dataSource = new DruidDataSource();
+        // 基础连接池配置
         dataSource.setInitialSize(5);
         dataSource.setMinIdle(5);
         dataSource.setMaxActive(20);
         dataSource.setMaxWait(60000);
         dataSource.setValidationQuery("SELECT 1");
         dataSource.setTestWhileIdle(true);
+        dataSource.setTimeBetweenEvictionRunsMillis(60000);
+        dataSource.setMinEvictableIdleTimeMillis(300000);
         return dataSource;
     }
 
@@ -106,4 +114,4 @@ public class DataSourceConfig {
     public PlatformTransactionManager transactionManager(@Qualifier("dynamicDataSource") DataSource dataSource) {
         return new DataSourceTransactionManager(dataSource);
     }
-}
+}  

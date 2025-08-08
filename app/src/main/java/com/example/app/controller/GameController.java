@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
  * 游戏控制器
  */
 @Slf4j
-@RestController
+@RestController("appGameController")
 @RequestMapping("/app/game")
 public class GameController {
 

@@ -27,37 +27,37 @@ public class RedisSentinelConfig {
      * 哨兵节点配置
      * 格式：host1:port1,host2:port2
      */
-    @Value("${spring.redis.sentinel.nodes:localhost:26379}")
+    @Value("${spring.data.redis.sentinel.nodes:localhost:26379}")
     private String sentinelNodes;
 
     /**
      * Redis主服务名称
      * 在sentinel.conf中配置的master名称
      */
-    @Value("${spring.redis.sentinel.master:mymaster}")
+    @Value("${spring.data.redis.sentinel.master:mymaster}")
     private String masterName;
 
     /**
      * Redis密码
      */
-    @Value("${spring.redis.password:}")
+    @Value("${spring.data.redis.password:}")
     private String password;
 
     /**
      * Redis数据库索引
      */
-    @Value("${spring.redis.database:0}")
+    @Value("${spring.data.redis.database:0}")
     private Integer database;
 
     /**
      * 连接超时时间（毫秒）
      */
-    @Value("${spring.redis.timeout:5000}")
+    @Value("${spring.data.redis.timeout:5000}")
     private Integer timeout;
 
     /**
      * Jedis连接池最大连接数
-     */
+     */  
     @Value("${spring.redis.jedis.pool.max-active:8}")
     private Integer maxActive;
 

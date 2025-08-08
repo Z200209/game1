@@ -36,7 +36,7 @@ import lombok.extern.slf4j.Slf4j;
  * 游戏控制器
  */
 @Slf4j
-@RestController
+@RestController("consoleGameController")
 @RequestMapping("/console/game")
 public class GameController {
 

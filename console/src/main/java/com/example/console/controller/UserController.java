@@ -22,7 +22,7 @@ import java.util.Base64;
  * 用户控制器
  */
 @Slf4j
-@RestController
+@RestController("consoleUserController")
 @RequestMapping("/console/user")
 public class UserController {
     

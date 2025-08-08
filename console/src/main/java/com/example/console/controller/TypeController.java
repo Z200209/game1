@@ -26,7 +26,7 @@ import java.util.List;
  * 游戏类型控制器
  */
 @Slf4j
-@RestController
+@RestController("consoleTypeController")
 @RequestMapping("/console/game/type")
 public class TypeController {
     @Autowired

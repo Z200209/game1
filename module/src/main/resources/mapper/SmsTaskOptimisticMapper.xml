@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.module.mapper.SmsTaskOptimisticMapper">
+    
+    <!-- 插入短信任务 -->
+    <insert id="insert" parameterType="com.example.module.entity.SmsTaskOptimistic" useGeneratedKeys="true" keyProperty="smsTaskOptimistic.id">
+        INSERT INTO sms_task_crond (
+        <trim suffixOverrides=",">
+            <if test="smsTaskOptimistic.phone != null and smsTaskOptimistic.phone != ''">phone,</if>
+            <if test="smsTaskOptimistic.templateParam != null and smsTaskOptimistic.templateParam != ''">template_param,</if>
+            <if test="smsTaskOptimistic.status != null">status,</if>
+            <if test="smsTaskOptimistic.version != null">version,</if>
+            <if test="smsTaskOptimistic.executeTime != null">execute_time,</if>
+            <if test="smsTaskOptimistic.createTime != null">create_time,</if>
+            <if test="smsTaskOptimistic.updateTime != null">update_time,</if>
+            <if test="smsTaskOptimistic.isDeleted != null">is_deleted,</if>
+        </trim>
+        )
+        VALUES (
+        <trim suffixOverrides=",">
+            <if test="smsTaskOptimistic.phone != null and smsTaskOptimistic.phone != ''">#{smsTaskOptimistic.phone},</if>
+            <if test="smsTaskOptimistic.templateParam != null and smsTaskOptimistic.templateParam != ''">#{smsTaskOptimistic.templateParam},</if>
+            <if test="smsTaskOptimistic.status != null">#{smsTaskOptimistic.status},</if>
+            <if test="smsTaskOptimistic.version != null">#{smsTaskOptimistic.version},</if>
+            <if test="smsTaskOptimistic.executeTime != null">#{smsTaskOptimistic.executeTime},</if>
+            <if test="smsTaskOptimistic.createTime != null">#{smsTaskOptimistic.createTime},</if>
+            <if test="smsTaskOptimistic.updateTime != null">#{smsTaskOptimistic.updateTime},</if>
+            <if test="smsTaskOptimistic.isDeleted != null">#{smsTaskOptimistic.isDeleted},</if>
+        </trim>
+        )
+    </insert>
+    
+    <!-- 乐观锁更新任务状态 -->
+    <update id="updateStatusWithOptimisticLock">
+        UPDATE sms_task_crond 
+        SET status = #{status}, 
+            execute_time = #{executeTime}, 
+            update_time = #{updateTime},
+            version = version + 1
+        WHERE id = #{id} 
+        AND version = #{version}
+        AND is_deleted = 0
+    </update>
+    
+    <!-- 乐观锁更新任务（完整更新） -->
+    <update id="updateWithOptimisticLock" parameterType="com.example.module.entity.SmsTaskOptimistic">
+        UPDATE sms_task_crond
+        <set>
+            <if test="smsTaskOptimistic.phone != null and smsTaskOptimistic.phone != ''">phone = #{smsTaskOptimistic.phone},</if>
+            <if test="smsTaskOptimistic.templateParam != null and smsTaskOptimistic.templateParam != ''">template_param = #{smsTaskOptimistic.templateParam},</if>
+            <if test="smsTaskOptimistic.status != null">status = #{smsTaskOptimistic.status},</if>
+            <if test="smsTaskOptimistic.executeTime != null">execute_time = #{smsTaskOptimistic.executeTime},</if>
+            <if test="smsTaskOptimistic.updateTime != null">update_time = #{smsTaskOptimistic.updateTime},</if>
+            <if test="smsTaskOptimistic.isDeleted != null">is_deleted = #{smsTaskOptimistic.isDeleted},</if>
+            version = version + 1
+        </set>
+        WHERE id = #{smsTaskOptimistic.id} 
+        AND version = #{smsTaskOptimistic.version}
+        AND is_deleted = 0
+    </update>
+    
+    <!-- 逻辑删除 -->
+    <update id="delete" parameterType="java.math.BigInteger">
+        UPDATE sms_task_crond SET is_deleted = 1, update_time = #{time} WHERE id = #{id} AND is_deleted = 0
+    </update>
+    
+    <!-- 查询待执行的任务（按创建时间顺序） -->
+    <select id="findPendingTasks" resultType="com.example.module.entity.SmsTaskOptimistic">
+        SELECT * FROM sms_task_crond 
+        WHERE status = 0 
+        AND is_deleted = 0
+        ORDER BY create_time ASC
+        LIMIT #{limit}
+    </select>
+    
+    <!-- 根据ID查询任务 -->
+    <select id="findById" parameterType="java.math.BigInteger" resultType="com.example.module.entity.SmsTaskOptimistic">
+        SELECT * FROM sms_task_crond WHERE id = #{id} AND is_deleted = 0
+    </select>
+    
+    <!-- 根据手机号查询任务 -->
+    <select id="findByPhone" parameterType="string" resultType="com.example.module.entity.SmsTaskOptimistic">
+        SELECT * FROM sms_task_crond WHERE phone = #{phone} AND is_deleted = 0 ORDER BY create_time DESC
+    </select>
+    
+    <!-- 尝试锁定任务（将状态从0改为100，使用乐观锁） -->
+    <update id="tryLockTask">
+        UPDATE sms_task_crond 
+        SET status = 100,
+            update_time = #{updateTime},
+            version = version + 1
+        WHERE id = #{id} 
+        AND status = 0
+        AND version = #{version}
+        AND is_deleted = 0
+    </update>
+    
+</mapper>

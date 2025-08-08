@@ -8,7 +8,6 @@ import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import com.example.console.interceptor.ConsoleInterceptor;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-import com.example.module.service.UserService;
 
 import java.util.List;
 
@@ -37,7 +36,7 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(consoleInterceptor)
+        registry.addInterceptor(consoleInterceptor)  // 添加拦截器
                 .addPathPatterns("/console/**")
                 .excludePathPatterns(
                         "/console/user/login",

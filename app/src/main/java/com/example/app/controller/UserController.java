@@ -20,7 +20,7 @@ import java.util.Base64;
  * 用户控制器
  */
 @Slf4j
-@RestController
+@RestController("appUserController")
 @RequestMapping("/app/user")
 public class UserController {
     

@@ -25,7 +25,7 @@ import java.util.List;
  * 游戏类型控制器
  */
 @Slf4j
-@RestController
+@RestController("appTypeController")
 @RequestMapping("/app/game/type")
 public class TypeController {
     
