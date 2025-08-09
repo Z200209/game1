@@ -47,4 +47,10 @@ public interface GameTagRelationMapper {
      */
     @Update("UPDATE game_tag_relation SET update_time = #{updateTime}, is_deleted = 1 WHERE id = #{id}")
     int delete(@Param("id") BigInteger id, @Param("updateTime") Integer updateTime);
-} 
+
+    /**
+     * 根据游戏ID批量逻辑删除标签关联关系
+     */
+    @Update("UPDATE game_tag_relation SET update_time = #{updateTime}, is_deleted = 1 WHERE game_id = #{gameId} AND is_deleted = 0")
+    int deleteByGameId(@Param("gameId") BigInteger gameId, @Param("updateTime") Integer updateTime);
+}
