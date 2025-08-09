@@ -21,13 +21,13 @@ public interface GameMapper  {
 
     int update(@Param("game") Game game);
 
-    @Update("update game set is_deleted = 1, update_time=#{time} wBhere id = #{id} limit 1")
+    @Update("update game set is_deleted = 1, update_time=#{time} where id = #{id} limit 1")
     int delete(@Param("id") BigInteger id, @Param("time") Integer time);
 
 
     List<Game> getAll(@Param("offset") Integer offset, @Param("pageSize") Integer pageSize , @Param("keyword") String keyword, @Param("typeId") BigInteger typeId, @Param("ids") String ids);
 
-    @Select("select * from game where type_id = #{typeId}")
+    @Select("select * from game where type_id = #{typeId} and is_deleted = 0")
     List<Game> getAllGameByTypeId(@Param("typeId") BigInteger typeId);
 
     int getTotalCount(@Param("keyword") String keyword);

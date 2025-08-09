@@ -74,4 +74,16 @@ public class GameTagRelationService {
         int currentTime = (int) (System.currentTimeMillis() / 1000);
         return mapper.batchDeleteByGameIdAndNotInTagIds(gameId, tagIds, currentTime);
     }
+
+    /**
+     * 根据游戏ID删除所有标签关联关系
+     */
+    @DataSource(DataSourceType.MASTER)
+    public int deleteByGameId(BigInteger gameId) {
+        if (gameId == null) {
+            throw new RuntimeException("游戏ID不能为空");
+        }
+        int currentTime = (int) (System.currentTimeMillis() / 1000);
+        return mapper.deleteByGameId(gameId, currentTime);
+    }
 }

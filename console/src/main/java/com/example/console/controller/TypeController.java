@@ -4,14 +4,16 @@ import com.example.console.annotations.VerifiedUser;
 import com.example.console.domain.type.TypeDetailVO;
 import com.example.console.domain.type.TypeListVO;
 import com.example.console.domain.type.TypeTreeVO;
+import com.example.module.service.Game.GameService;
+import com.example.module.service.Game.TypeService;
 import com.example.module.entity.Game;
 import com.example.module.entity.Type;
 import com.example.module.entity.User;
-import com.example.module.service.Game.GameService;
-import com.example.module.service.Game.TypeService;
+import com.example.module.mq.message.CategoryDeleteMessage;
 import com.example.module.utils.BaseUtils;
 import com.example.module.utils.Response;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 游戏类型控制器
@@ -33,6 +36,8 @@ public class TypeController {
     private TypeService typeService;
     @Autowired
     private GameService gameService;
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
 
     /**
      * 获取类型列表
@@ -201,7 +206,7 @@ public class TypeController {
     /**
      * 删除类型
      */
-    @GetMapping("/delete")
+    @RequestMapping("/delete")
     public Response deleteType(
             @VerifiedUser User loginUser,
             @RequestParam(name = "typeId") BigInteger typeId) {
@@ -226,24 +231,33 @@ public class TypeController {
             log.error("获取类型下游戏列表失败: {}", e.getMessage(), e);
             return new Response(4004);
         }
-        
-        if (games != null && !games.isEmpty()) {
-            log.info("该类型下有游戏，不能删除：{}", typeId);
-            return new Response(4005);
-        }
-        
-        // 删除类型
-        int result;
+
+
+        // 发送MQ消息异步删除类型及其关联内容
         try {
-            result = typeService.delete(typeId);
-        } catch (Exception e) {
-            log.error("删除类型失败: {}", e.getMessage(), e);
-            return new Response(4004);
-        }
-        
-        if (result == 1) {
+            // 获取类型信息用于消息
+            Type type = typeService.getById(typeId);
+            if (type == null) {
+                return new Response(4006);
+            }
+            
+            // 获取该类型下的所有游戏
+            List<BigInteger> gameIds = games.stream().map(Game::getId).collect(Collectors.toList());
+            
+            // 构建消息对象
+            CategoryDeleteMessage message = new CategoryDeleteMessage()
+                    .setCategoryId(typeId)
+                    .setCategoryName(type.getTypeName())
+                    .setGameIds(gameIds)
+                    .setTimestamp((int) (System.currentTimeMillis() / 1000))
+                    .setOperator(loginUser.getId());
+            log.info("发送删除类型MQ消息: {}", message);
+            rabbitTemplate.convertAndSend("category.delete.exchange", "category.delete", message);
+
             return new Response(1001);
-        } else {
+
+        } catch (Exception e) {
+            log.error("发送删除类型MQ消息失败: {}", e.getMessage(), e);
             return new Response(4004);
         }
     }
