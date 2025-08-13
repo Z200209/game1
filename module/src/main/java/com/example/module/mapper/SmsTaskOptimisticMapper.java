@@ -9,7 +9,7 @@ import java.util.List;
 
 /**
  * 短信任务乐观锁Mapper接口
- * 基于version字段实现乐观锁机制
+ * 基于status字段实现乐观锁机制
  */
 @Mapper
 public interface SmsTaskOptimisticMapper {
@@ -21,16 +21,15 @@ public interface SmsTaskOptimisticMapper {
     
     /**
      * 乐观锁更新任务状态
-     * 更新时会校验version字段，防止并发修改
      */
     int updateStatusWithOptimisticLock(@Param("id") BigInteger id, 
-                                      @Param("status") Integer status, 
+                                      @Param("newStatus") Integer newStatus, 
+                                      @Param("oldStatus") Integer oldStatus,
                                       @Param("executeTime") Integer executeTime, 
-                                      @Param("updateTime") Integer updateTime,
-                                      @Param("version") Integer version);
+                                      @Param("updateTime") Integer updateTime);
     
     /**
-     * 乐观锁更新任务
+     * 更新任务
      */
     int updateWithOptimisticLock(@Param("smsTaskOptimistic") SmsTaskOptimistic smsTaskOptimistic);
     
@@ -43,7 +42,7 @@ public interface SmsTaskOptimisticMapper {
      * 查询待执行的任务（按创建时间顺序）
      * 状态为0的任务
      */
-    List<SmsTaskOptimistic> findPendingTasks(@Param("limit") Integer limit);
+    List<SmsTaskOptimistic> findPendingTasks();
     
     /**
      * 根据ID查询任务
@@ -57,9 +56,8 @@ public interface SmsTaskOptimisticMapper {
     
     /**
      * 尝试锁定任务（将状态从0改为100）
-     * 使用乐观锁机制
+     * 使用基于status的乐观锁机制
      */
     int tryLockTask(@Param("id") BigInteger id, 
-                   @Param("version") Integer version,
                    @Param("updateTime") Integer updateTime);
 }

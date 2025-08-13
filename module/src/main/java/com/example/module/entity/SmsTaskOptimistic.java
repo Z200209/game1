@@ -6,6 +6,7 @@ import java.math.BigInteger;
 
 /**
  * 短信任务乐观锁实体类
+ * 使用status字段实现乐观锁机制
  */
 @Data
 public class SmsTaskOptimistic {
@@ -26,17 +27,12 @@ public class SmsTaskOptimistic {
     private String templateParam;
     
     /**
-     * 任务状态：0-初始状态，1-完成，2-失败，100-处理中
+     * 任务状态：0-初始状态，1-完成，2-失败，100-处理中（锁定状态）
      */
     private Integer status;
-    
+
     /**
-     * 乐观锁版本号
-     */
-    private Integer version;
-    
-    /**
-     * 实际执行时间戳
+     * 执行时间戳
      */
     private Integer executeTime;
     

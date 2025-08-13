@@ -25,25 +25,14 @@ public class SmsTaskOptimisticScheduler {
     public void executeScheduledTasks() {
         try {
             log.info("开始执行定时短信任务调度");
-            smsTaskOptimisticService.executePendingTasksWithOptimisticLock();
-            log.info("定时短信任务调度执行完成");
+            smsTaskOptimisticService.executePendingTasksWithRedis() ;
+            if (smsTaskOptimisticService.executePendingTasksWithRedis()){
+                log.info("定时短信任务执行完成");
+            }else {
+                log.info("执行异常");
+            }
         } catch (Exception e) {
             log.error("定时短信任务调度执行异常: {}", e.getMessage(), e);
-        }
-    }
-    
-
-    
-    /**
-     * 手动触发任务执行
-     */
-    public void manualExecute() {
-        try {
-            log.info("手动触发短信任务执行");
-            smsTaskOptimisticService.executePendingTasksWithOptimisticLock();
-            log.info("手动触发任务执行完成");
-        } catch (Exception e) {
-            log.error("手动触发任务执行异常: {}", e.getMessage(), e);
         }
     }
 }

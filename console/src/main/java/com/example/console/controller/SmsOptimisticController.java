@@ -25,7 +25,7 @@ public class SmsOptimisticController {
     private SmsTaskOptimisticService smsTaskOptimisticService;
 
     /**
-     * 添加短信任务（乐观锁版本）
+     * 添加短信任务
      */
     @RequestMapping("/task/add")
     public Response addSmsTask(@VerifiedUser User loginUser,
@@ -75,7 +75,7 @@ public class SmsOptimisticController {
     }
     
     /**
-     * 查询短信任务记录（乐观锁版本）
+     * 查询短信任务记录
      */
     @RequestMapping("/task/records")
     public Response getSmsTaskRecords(@VerifiedUser User loginUser,
@@ -102,7 +102,7 @@ public class SmsOptimisticController {
     }
     
     /**
-     * 根据ID查询短信任务（乐观锁版本）
+     * 根据ID查询短信任务
      */
     @RequestMapping("/task/{id}")
     public Response getSmsTaskById(@VerifiedUser User loginUser,
@@ -132,7 +132,7 @@ public class SmsOptimisticController {
     }
     
     /**
-     * 删除短信任务（乐观锁版本）
+     * 删除短信任务
      */
     @RequestMapping("/task/delete/{id}")
     public Response deleteSmsTask(@VerifiedUser User loginUser,
@@ -162,69 +162,5 @@ public class SmsOptimisticController {
             return new Response(4004); // 操作失败
         }
     }
-    
-    /**
-     * 手动触发执行待处理任务（乐观锁版本）
-     */
-    @RequestMapping("/task/execute")
-    public Response executePendingTasks(@VerifiedUser User loginUser) {
-        // 验证用户是否登录
-        if (loginUser == null) {
-            log.warn("未登录用户尝试执行待处理任务");
-            return new Response(1002); // 没有登录
-        }
-        
-        log.info("用户 {} 手动触发执行待处理短信任务（乐观锁版本）", loginUser.getId());
-        
-        try {
-            smsTaskOptimisticService.executePendingTasksWithOptimisticLock();
-            return new Response(1001, "任务执行完成"); // 成功
-        } catch (Exception e) {
-            log.error("执行待处理任务异常: {}", e.getMessage(), e);
-            return new Response(4004); // 操作失败
-        }
-    }
-    
-    /**
-     * 清理过期的Redis锁
-     */
-    @RequestMapping("/task/clean-locks")
-    public Response cleanExpiredLocks(@VerifiedUser User loginUser) {
-        // 验证用户是否登录
-        if (loginUser == null) {
-            log.warn("未登录用户尝试清理Redis锁");
-            return new Response(1002); // 没有登录
-        }
 
-        log.info("用户 {} 手动触发清理Redis过期锁", loginUser.getId());
-
-        try {
-            smsTaskOptimisticService.cleanExpiredLocks();
-            return new Response(1001, "锁清理完成"); // 成功
-        } catch (Exception e) {
-            log.error("清理Redis锁异常: {}", e.getMessage(), e);
-            return new Response(4004); // 操作失败
-        }
-    }
-    
-    /**
-     * 获取任务统计信息
-     */
-    @RequestMapping("/task/stats")
-    public Response getTaskStats(@VerifiedUser User loginUser) {
-        // 验证用户是否登录
-        if (loginUser == null) {
-            log.warn("未登录用户尝试获取任务统计");
-            return new Response(1002); // 没有登录
-        }
-        
-        try {
-            // 这里可以添加统计逻辑，比如查询各种状态的任务数量
-            // 暂时返回简单的成功响应
-            return new Response(1001, "统计功能待实现"); // 成功
-        } catch (Exception e) {
-            log.error("获取任务统计异常: {}", e.getMessage(), e);
-            return new Response(4004); // 操作失败
-        }
-    }
 }

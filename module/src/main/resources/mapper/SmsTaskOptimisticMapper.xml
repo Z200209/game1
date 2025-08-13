@@ -9,7 +9,6 @@
             <if test="smsTaskOptimistic.phone != null and smsTaskOptimistic.phone != ''">phone,</if>
             <if test="smsTaskOptimistic.templateParam != null and smsTaskOptimistic.templateParam != ''">template_param,</if>
             <if test="smsTaskOptimistic.status != null">status,</if>
-            <if test="smsTaskOptimistic.version != null">version,</if>
             <if test="smsTaskOptimistic.executeTime != null">execute_time,</if>
             <if test="smsTaskOptimistic.createTime != null">create_time,</if>
             <if test="smsTaskOptimistic.updateTime != null">update_time,</if>
@@ -21,7 +20,6 @@
             <if test="smsTaskOptimistic.phone != null and smsTaskOptimistic.phone != ''">#{smsTaskOptimistic.phone},</if>
             <if test="smsTaskOptimistic.templateParam != null and smsTaskOptimistic.templateParam != ''">#{smsTaskOptimistic.templateParam},</if>
             <if test="smsTaskOptimistic.status != null">#{smsTaskOptimistic.status},</if>
-            <if test="smsTaskOptimistic.version != null">#{smsTaskOptimistic.version},</if>
             <if test="smsTaskOptimistic.executeTime != null">#{smsTaskOptimistic.executeTime},</if>
             <if test="smsTaskOptimistic.createTime != null">#{smsTaskOptimistic.createTime},</if>
             <if test="smsTaskOptimistic.updateTime != null">#{smsTaskOptimistic.updateTime},</if>
@@ -33,30 +31,25 @@
     <!-- 乐观锁更新任务状态 -->
     <update id="updateStatusWithOptimisticLock">
         UPDATE sms_task_crond 
-        SET status = #{status}, 
-            execute_time = #{executeTime}, 
-            update_time = #{updateTime},
-            version = version + 1
-        WHERE id = #{id} 
-        AND version = #{version}
-        AND is_deleted = 0
+        <set>
+            <if test="newStatus != null">status = #{newStatus},</if>
+            <if test="executeTime != null">execute_time = #{executeTime},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </set>
+        WHERE id = #{id} AND status = #{oldStatus} AND is_deleted = 0
     </update>
     
-    <!-- 乐观锁更新任务（完整更新） -->
-    <update id="updateWithOptimisticLock" parameterType="com.example.module.entity.SmsTaskOptimistic">
-        UPDATE sms_task_crond
+    <!-- 更新任务 -->
+    <update id="updateWithOptimisticLock">
+        UPDATE sms_task_crond 
         <set>
-            <if test="smsTaskOptimistic.phone != null and smsTaskOptimistic.phone != ''">phone = #{smsTaskOptimistic.phone},</if>
-            <if test="smsTaskOptimistic.templateParam != null and smsTaskOptimistic.templateParam != ''">template_param = #{smsTaskOptimistic.templateParam},</if>
-            <if test="smsTaskOptimistic.status != null">status = #{smsTaskOptimistic.status},</if>
-            <if test="smsTaskOptimistic.executeTime != null">execute_time = #{smsTaskOptimistic.executeTime},</if>
-            <if test="smsTaskOptimistic.updateTime != null">update_time = #{smsTaskOptimistic.updateTime},</if>
-            <if test="smsTaskOptimistic.isDeleted != null">is_deleted = #{smsTaskOptimistic.isDeleted},</if>
-            version = version + 1
+            <if test="phone != null and phone != ''">phone = #{phone},</if>
+            <if test="templateParam != null and templateParam != ''">template_param = #{templateParam},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="executeTime != null">execute_time = #{executeTime},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
         </set>
-        WHERE id = #{smsTaskOptimistic.id} 
-        AND version = #{smsTaskOptimistic.version}
-        AND is_deleted = 0
+        WHERE id = #{id} AND status = #{oldStatus} AND is_deleted = 0
     </update>
     
     <!-- 逻辑删除 -->
@@ -70,7 +63,6 @@
         WHERE status = 0 
         AND is_deleted = 0
         ORDER BY create_time ASC
-        LIMIT #{limit}
     </select>
     
     <!-- 根据ID查询任务 -->
@@ -83,16 +75,14 @@
         SELECT * FROM sms_task_crond WHERE phone = #{phone} AND is_deleted = 0 ORDER BY create_time DESC
     </select>
     
-    <!-- 尝试锁定任务（将状态从0改为100，使用乐观锁） -->
+    <!-- 尝试锁定任务 -->
     <update id="tryLockTask">
         UPDATE sms_task_crond 
-        SET status = 100,
-            update_time = #{updateTime},
-            version = version + 1
-        WHERE id = #{id} 
-        AND status = 0
-        AND version = #{version}
-        AND is_deleted = 0
+        <set>
+            status = 100,
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </set>
+        WHERE id = #{id} AND status = 0 AND is_deleted = 0
     </update>
     
 </mapper>
