@@ -14,9 +14,7 @@ import com.example.module.utils.BaseUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.RedisCallback;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.connection.ReturnType;
+
 import org.springframework.stereotype.Service;
 
 import java.math.BigInteger;
@@ -41,14 +39,6 @@ public class SmsTaskOptimisticService {
     @Autowired
     private SmsTaskOptimisticMapper smsTaskOptimisticMapper;
 
-    @Autowired
-    private RedisTemplate<String, Object> redisTemplate;
-
-    private static final String LOCK_PREFIX = "sms_task_lock:";
-    private static final String PROCESSING_PREFIX = "sms_task_processing:";
-    private static final int GLOBAL_LOCK_EXPIRE_TIME = 60; // 全局锁过期时间：1分钟
-    private static final int TASK_LOCK_EXPIRE_TIME = 300; // 任务锁过期时间：5分钟
-    private static final int MAX_RETRY_TIMES = 3; // 最大重试次数
 
     String templateCode = "SMS_154950909";
     String templateName = "阿里云短信测试";
@@ -160,10 +150,10 @@ public class SmsTaskOptimisticService {
 
 
     /**
-     * 使用Redis乐观锁执行待处理任务
+     * 使用数据库乐观锁执行待处理任务
      */
     @DataSource(DataSourceType.MASTER)
-    public boolean executePendingTasksWithRedis() {
+    public boolean executePendingTasks() {
         try {
             // 1. list = select * from 任务表 where status = 0
             List<SmsTaskOptimistic> SmsList = smsTaskOptimisticMapper.findPendingTasks();
@@ -178,22 +168,16 @@ public class SmsTaskOptimisticService {
             // 2. 循环 list
             for (SmsTaskOptimistic task : SmsList) {
                 try {
-                    // 3. res = update 任务表 set status = 100 where id = xxx and status = 0
-                    String taskStatusKey = "task_status_" + task.getId();  // 任务状态锁
-                    String lockKey = "task_lock_" + task.getId();          // 任务锁
-                    String lockValue = "locked_" + System.currentTimeMillis() + "_" + Thread.currentThread().getId();  // 锁值
+                    // 3. 使用乐观锁：update 任务表 set status = 100 where id = xxx and status = 0
+                    log.info("尝试获取任务锁 - TaskId: {}", task.getId());
 
-                    // 记录Redis锁创建日志
-                    log.info(" 尝试获取任务锁 - TaskId: {}, StatusKey: {}, LockKey: {}, LockValue: {}",
-                            task.getId(), taskStatusKey, lockKey, lockValue);
+                    // 使用数据库乐观锁：期望状态为0，设置为100（处理中）
+                    int lockResult = smsTaskOptimisticMapper.updateStatusWithOptimisticLock(
+                            task.getId(), 100, 0, BaseUtils.currentSeconds(), BaseUtils.currentSeconds());
 
-                    // 使用Redis乐观锁：期望状态为0，设置为100（锁定）
-                    boolean res = redisOptimisticLockWithStatus(taskStatusKey, "0", "100", lockKey, lockValue, TASK_LOCK_EXPIRE_TIME);
-
-                    // 4. if res = true
-                    if (res) {
-                        log.info("成功获取任务锁 - TaskId: {}, StatusKey: {}, 状态: 0->100",
-                                task.getId(), taskStatusKey);
+                    // 4. if lockResult > 0 (成功获取锁)
+                    if (lockResult > 0) {
+                        log.info("成功获取任务锁 - TaskId: {}, 状态: 0->100", task.getId());
 
                         try {
                             // 发短信
@@ -206,18 +190,16 @@ public class SmsTaskOptimisticService {
                             // 根据发送结果确定最终状态
                             int finalStatus = sendResult ? 1 : 2; // 1=成功，2=失败
 
-                            // 更新数据库
+                            // 更新数据库状态：从100（处理中）更新为最终状态
                             int dbUpdateResult = smsTaskOptimisticMapper.updateStatusWithOptimisticLock(
-                                    task.getId(), finalStatus, 0, BaseUtils.currentSeconds(), BaseUtils.currentSeconds());
+                                    task.getId(), finalStatus, 100, BaseUtils.currentSeconds(), BaseUtils.currentSeconds());
 
                             if (dbUpdateResult > 0) {
-                                log.info("数据库更新成功 - TaskId: {}, 状态: 0->{}", task.getId(), finalStatus);
-
+                                log.info("数据库更新成功 - TaskId: {}, 状态: 100->{}", task.getId(), finalStatus);
                             } else {
-                                log.error(" 数据库更新失败 - TaskId: {}, 期望状态: 0, 目标状态: {}, 影响行数: {}",
+                                log.error("数据库更新失败 - TaskId: {}, 期望状态: 100, 目标状态: {}, 影响行数: {}",
                                         task.getId(), finalStatus, dbUpdateResult);
-                                // 数据库更新失败，可能是并发冲突，保持Redis锁定状态
-                                log.info("数据库更新失败，可能存在并发冲突，保持Redis锁定状态 - TaskId: {}", task.getId());
+                                log.info("数据库更新失败，可能存在并发冲突 - TaskId: {}", task.getId());
                             }
 
                             // 延迟一定时间
@@ -227,155 +209,37 @@ public class SmsTaskOptimisticService {
                             throw new RuntimeException(e);
                         }
                     } else {
-                        // 5. else 跳过
-                        Object currentStatusObj = redisTemplate.opsForValue().get(taskStatusKey);
-                        String currentStatus = currentStatusObj != null ? currentStatusObj.toString() : "null";
-                        log.info(" 任务已被其他线程处理，跳过处理，任务ID: {}, 手机号: {}, 当前状态: {}", task.getId(), task.getPhone(), currentStatus);
+                        // 5. else 跳过（未能获取到锁，说明任务已被其他线程处理）
+                        log.info("任务已被其他线程处理，跳过处理，任务ID: {}, 手机号: {}", task.getId(), task.getPhone());
                     }
 
                 } catch (Exception e) {
                     log.error("处理任务异常，任务ID: {}, 手机号: {}, 错误: {}",
                             task.getId(), task.getPhone(), e.getMessage(), e);
 
-                    // 异常时尝试释放锁（将状态从100改回0，允许重新处理）
+                    // 异常时尝试回滚状态（将状态从100改回0，允许重新处理）
                     try {
-                        String taskStatusKey = "task_status_" + task.getId();
-                        String lockKey = "task_lock_" + task.getId();
-                        // 尝试将Redis状态从100改回0
-                        boolean released = redisOptimisticLockWithStatus(taskStatusKey, "100", "0", lockKey, null, 60);
+                        int rollbackResult = smsTaskOptimisticMapper.updateStatusWithOptimisticLock(
+                                task.getId(), 0, 100, BaseUtils.currentSeconds(), BaseUtils.currentSeconds());
 
-                        if (released) {
-                            log.info(" 释放任务锁成功，任务ID: {}", task.getId());
+                        if (rollbackResult > 0) {
+                            log.info("状态回滚成功，任务ID: {}, 状态: 100->0", task.getId());
                         } else {
-                            log.error(" 释放任务锁失败，任务ID: {}", task.getId());
+                            log.error("状态回滚失败，任务ID: {}", task.getId());
                         }
                     } catch (Exception ex) {
-                        log.error(" 释放任务锁异常，任务ID: {}, 错误: {}",
+                        log.error("状态回滚异常，任务ID: {}, 错误: {}",
                                 task.getId(), ex.getMessage());
                     }
                 }
             }
 
-            log.info(" 本轮任务处理完成，共处理 {} 个任务", SmsList.size());
+            log.info("本轮任务处理完成，共处理 {} 个任务", SmsList.size());
             return true;
 
         } catch (Exception e) {
             log.error("执行待处理任务异常: {}", e.getMessage(), e);
             return false;
-        }
-    }
-
-    /**
-     * Redis乐观锁实现
-     * @param statusKey 状态键
-     * @param expectedStatus 期望状态
-     * @param newStatus 新状态
-     * @param lockKey 分布式锁键
-     * @param lockValue 分布式锁值
-     * @param expireSeconds 过期时间
-     * @return 是否更新成功
-     */
-    private boolean redisOptimisticLockWithStatus(String statusKey, String expectedStatus, String newStatus,
-                                                  String lockKey, String lockValue, int expireSeconds) {
-        try {
-            // 记录操作日志
-            log.info("状态更新尝试 - StatusKey: {}, Expected: {}, New: {}, LockKey: {}, LockValue: {}, TTL: {}秒",
-                    statusKey, expectedStatus, newStatus, lockKey, lockValue, expireSeconds);
-
-            // 使用Lua脚本实现原子性操作
-            String luaScript =
-                    "local currentStatus = redis.call('GET', KEYS[1])\n" +
-                            "if currentStatus == ARGV[1] or (currentStatus == false and ARGV[1] == '0') then\n" +
-                            "    redis.call('SET', KEYS[1], ARGV[2])\n" +
-                            "    redis.call('EXPIRE', KEYS[1], ARGV[3])\n" +
-                            "    if KEYS[2] and ARGV[4] then\n" +
-                            "        redis.call('SET', KEYS[2], ARGV[4])\n" +
-                            "        redis.call('EXPIRE', KEYS[2], ARGV[3])\n" +
-                            "    end\n" +
-                            "    return 1\n" +
-                            "else\n" +
-                            "    return 0\n" +
-                            "end";
-
-            Object result;
-            if (lockKey != null && lockValue != null) {
-                // 带分布式锁的操作
-                result = redisTemplate.execute((RedisCallback<Object>) connection ->
-                        connection.eval(luaScript.getBytes(), ReturnType.INTEGER, 2,
-                                statusKey.getBytes(), lockKey.getBytes(),
-                                expectedStatus.getBytes(), newStatus.getBytes(),
-                                String.valueOf(expireSeconds).getBytes(), lockValue.getBytes()));
-            } else {
-                // 仅状态更新
-                result = redisTemplate.execute((RedisCallback<Object>) connection ->
-                        connection.eval(luaScript.getBytes(), ReturnType.INTEGER, 2,
-                                statusKey.getBytes(), "".getBytes(),
-                                expectedStatus.getBytes(), newStatus.getBytes(),
-                                String.valueOf(expireSeconds).getBytes(), "".getBytes()));
-            }
-
-            boolean success = false;
-            if (result instanceof Long) {
-                success = ((Long) result) == 1L;
-            } else if (result instanceof Integer) {
-                success = ((Integer) result) == 1;
-            }
-
-            // 根据结果记录日志
-            if (success) {
-                log.info("状态更新成功 - StatusKey: {}, Status: {}→{}, LockKey: {}",
-                        statusKey, expectedStatus, newStatus, lockKey);
-            } else {
-                Object currentStatusObj = redisTemplate.opsForValue().get(statusKey);
-                String currentStatus = currentStatusObj != null ? currentStatusObj.toString() : "null";
-                log.warn("状态更新失败 - StatusKey: {}, Expected: {}, Actual: {}, New: {}",
-                        statusKey, expectedStatus, currentStatus, newStatus);
-            }
-
-            return success;
-
-        } catch (Exception e) {
-            log.error("状态更新异常 - StatusKey: {}, Expected: {}, New: {}, 错误: {}",
-                    statusKey, expectedStatus, newStatus, e.getMessage(), e);
-            return false;
-        }
-    }
-
-    /**
-     * 释放Redis分布式锁
-     * @param lockKey 锁键
-     * @param lockValue 锁值
-     */
-    private void releaseRedisLock(String lockKey, String lockValue) {
-        try {
-            String luaScript =
-                    "if redis.call('GET', KEYS[1]) == ARGV[1] then\n" +
-                            "    return redis.call('DEL', KEYS[1])\n" +
-                            "else\n" +
-                            "    return 0\n" +
-                            "end";
-
-            Object result = redisTemplate.execute((RedisCallback<Object>) connection ->
-                    connection.eval(luaScript.getBytes(), ReturnType.INTEGER, 1,
-                            lockKey.getBytes(), lockValue.getBytes()));
-
-            boolean released = false;
-            if (result instanceof Long) {     //  判断是否为Long类型
-                released = ((Long) result) == 1L;   // 判断是否为1L  1L 表示成功释放锁
-            }
-
-            if (released) {
-                log.info("成功释放分布式锁 - LockKey: {}, LockValue: {}", lockKey, lockValue);
-            } else {
-                Object currentValueObj = redisTemplate.opsForValue().get(lockKey);
-                String currentValue = currentValueObj != null ? currentValueObj.toString() : "null";
-                log.warn("锁值不匹配，无法释放 - LockKey: {}, Expected: {}, Actual: {}",
-                        lockKey, lockValue, currentValue);
-            }
-
-        } catch (Exception e) {
-            log.error("释放锁异常 - LockKey: {}, LockValue: {}, 错误: {}",
-                    lockKey, lockValue, e.getMessage(), e);
         }
     }
 }

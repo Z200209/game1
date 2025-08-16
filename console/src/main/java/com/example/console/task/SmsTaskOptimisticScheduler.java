@@ -25,8 +25,8 @@ public class SmsTaskOptimisticScheduler {
     public void executeScheduledTasks() {
         try {
             log.info("开始执行定时短信任务调度");
-            smsTaskOptimisticService.executePendingTasksWithRedis() ;
-            if (smsTaskOptimisticService.executePendingTasksWithRedis()){
+            smsTaskOptimisticService.executePendingTasks();
+            if (smsTaskOptimisticService.executePendingTasks()){
                 log.info("定时短信任务执行完成");
             }else {
                 log.info("执行异常");
